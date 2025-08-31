@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Read with Me! - First Grade Sight Words</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <!-- PDF.js for PDF handling -->
+    <script src="lib/pdf.min.js"></script>
+    <!-- Tesseract.js for OCR -->
+    <script src="lib/tesseract.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Read with Me!</h1>
+            <p class="subtitle">Click on any word to hear it spoken aloud</p>
+        </header>
+        
+        <!-- PDF Upload Section -->
+        <div class="upload-section">
+            <h2>Add New Words</h2>
+            <p class="upload-instructions">Upload a PDF with sight words to add them to the list</p>
+            
+            <div class="upload-area" id="upload-area">
+                <div class="upload-content">
+                    <div class="upload-icon">📄</div>
+                    <p>Drag & drop a PDF here or click to browse</p>
+                    <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
+                    <button class="upload-button" onclick="document.getElementById('pdf-input').click()">
+                        Choose PDF File
+                    </button>
+                    <p style="margin-top: 15px; font-size: 0.9rem; color: #888;">
+                        Or <button class="text-button" onclick="showManualInput()">add words manually</button>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="processing-status" id="processing-status" style="display: none;">
+                <div class="spinner"></div>
+                <p id="status-text">Processing PDF...</p>
+            </div>
+            
+            <div class="word-preview" id="word-preview" style="display: none;">
+                <h3>Detected Words:</h3>
+                <div class="preview-words" id="preview-words"></div>
+                <div class="preview-actions">
+                    <button class="save-button" id="save-button">Save Words</button>
+                    <button class="cancel-button" id="cancel-button">Cancel</button>
+                </div>
+            </div>
+            
+            <!-- Manual word input as fallback -->
+            <div class="manual-input" id="manual-input" style="display: none;">
+                <h3>Add Words Manually</h3>
+                <p>Enter words separated by spaces or commas:</p>
+                <textarea id="word-input" placeholder="Enter words here... (e.g., cat, dog, bird)"></textarea>
+                <div class="manual-actions">
+                    <button class="save-button" id="manual-save-button">Add Words</button>
+                    <button class="cancel-button" id="manual-cancel-button">Cancel</button>
+                </div>
+            </div>
+        </div>
+        
+        <main>
+            <div id="word-container">
+                <!-- Words will be dynamically loaded here -->
+            </div>
+        </main>
+        
+        <footer>
+            <p>Practice your first-grade sight words!</p>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
