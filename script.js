@@ -581,7 +581,22 @@ function sanityTestWord(word) {
         return { isValid: false, reason: `concatenated_words (${concatenationResult.parts.join('+')})` };
     }
     
-    // 5. Check for repeated characters (OCR noise)
+
+    
+    // 5. Check for truncated words (OCR dropping first letter)
+    const truncatedWords = [
+        // Common truncated words from OCR dropping first letter
+        'uch', 'ave', 'ere', 'ell', 'ith', 'ome', 'ook', 'ake', 'ive', 'ind',
+        'ent', 'ood', 'ery', 'rom', 'ork', 'lay', 'ide', 'ong', 'ight', 'ime',
+        'ead', 'rite', 'alk', 'ump', 'ink', 'eel', 'old', 'ew', 'ast', 'ext',
+        'ight', 'ould', 'ater', 'eople', 'irst', 'umber', 'ther', 'ime', 'ord'
+    ];
+    
+    if (truncatedWords.includes(testWord)) {
+        return { isValid: false, reason: 'truncated_word' };
+    }
+    
+    // 6. Check for repeated characters (OCR noise)
     const repeatedCharPattern = /(.)\1{2,}/; // 3 or more repeated characters
     if (repeatedCharPattern.test(testWord)) {
         return { isValid: false, reason: 'repeated_chars' };
@@ -655,7 +670,9 @@ function testSanityChecks() {
         'willtest', 'cantest', 'hastest', 'dotest', 'gotest', 'seetest', 'maketest', 'taketest',
         'willcheck', 'cancheck', 'hascheck', 'docheck', 'gocheck', 'seecheck', 'makecheck', 'takecheck',
         'willtry', 'cantry', 'hastry', 'dotry', 'gotry', 'seetry', 'maketry', 'taketry',
-        'willuse', 'canuse', 'hasuse', 'douse', 'gouse', 'seeuse', 'makeuse', 'takeuse'
+        'willuse', 'canuse', 'hasuse', 'douse', 'gouse', 'seeuse', 'makeuse', 'takeuse',
+        // Test truncated words
+        'uch', 'ave', 'ere', 'ell', 'ith', 'ome', 'ook', 'ake', 'ive', 'ind'
     ];
     
     console.log('Testing sanity checks:');
