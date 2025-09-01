@@ -596,6 +596,22 @@ function sanityTestWord(word) {
         return { isValid: false, reason: 'truncated_word' };
     }
     
+    // 5.5. Check for OCR character substitution errors
+    const ocrSubstitutionErrors = [
+        // Common OCR character substitution errors (o->q, d->n, etc.)
+        'arqund', 'arounn', 'arqund', 'arqund', 'arounq', 'arounu', 'arourd', 'arcund',
+        'wqrd', 'woru', 'worq', 'wqru', 'worb', 'wqrb', 'worc', 'wqrc',
+        'tqe', 'tue', 'the', 'tne', 'fqr', 'fpr', 'fqt', 'fpt',
+        'qf', 'qn', 'qr', 'qut', 'qne', 'frqm', 'frpm', 'gqing',
+        'hqme', 'hpme', 'sqme', 'spme', 'cqme', 'cpme', 'tqok',
+        'lqqk', 'bqqk', 'gqqd', 'fqqd', 'nqqd', 'mqqd',
+        'whqle', 'whple', 'whqn', 'whpn', 'whqt', 'whpt'
+    ];
+    
+    if (ocrSubstitutionErrors.includes(testWord)) {
+        return { isValid: false, reason: 'ocr_substitution_error' };
+    }
+    
     // 6. Check for repeated characters (OCR noise)
     const repeatedCharPattern = /(.)\1{2,}/; // 3 or more repeated characters
     if (repeatedCharPattern.test(testWord)) {
@@ -672,7 +688,9 @@ function testSanityChecks() {
         'willtry', 'cantry', 'hastry', 'dotry', 'gotry', 'seetry', 'maketry', 'taketry',
         'willuse', 'canuse', 'hasuse', 'douse', 'gouse', 'seeuse', 'makeuse', 'takeuse',
         // Test truncated words
-        'uch', 'ave', 'ere', 'ell', 'ith', 'ome', 'ook', 'ake', 'ive', 'ind'
+        'uch', 'ave', 'ere', 'ell', 'ith', 'ome', 'ook', 'ake', 'ive', 'ind',
+        // Test OCR character substitution errors
+        'arqund', 'arounn', 'wqrd', 'tqe', 'fqr', 'qf', 'hqme', 'lqqk'
     ];
     
     console.log('Testing sanity checks:');
