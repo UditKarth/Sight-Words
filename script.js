@@ -604,7 +604,7 @@ function sanityTestWord(word) {
         'tqe', 'tue', 'the', 'tne', 'fqr', 'fpr', 'fqt', 'fpt',
         'qf', 'qn', 'qr', 'qut', 'qne', 'frqm', 'frpm', 'gqing',
         'hqme', 'hpme', 'sqme', 'spme', 'cqme', 'cpme', 'tqok',
-        'lqqk', 'bqqk', 'gqqd', 'fqqd', 'nqqd', 'mqqd',
+        'lqqk', 'bqqk', 'gqqd', 'fqqd', 'nqqd', 'mqqd', 'eek', 'iqk',
         'whqle', 'whple', 'whqn', 'whpn', 'whqt', 'whpt'
     ];
     
