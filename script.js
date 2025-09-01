@@ -126,7 +126,8 @@ async function loadWordsFromExamplePDF() {
         
         console.log('Processing extracted text...');
         showLoadingStatus('Processing extracted text...');
-        const processedWords = processExtractedText(extractedText);
+        const processedResult = processExtractedText(extractedText);
+        const processedWords = processedResult.words;
         
         console.log('Extracted words:', processedWords);
         
@@ -342,12 +343,13 @@ async function processPDF(file) {
         showProcessingStatus('Processing words...');
         
         // Process and filter words
-        const newWords = processExtractedText(extractedText);
+        const processedResult = processExtractedText(extractedText);
+        const newWords = processedResult.words;
         
         hideProcessingStatus();
         
         if (newWords.length > 0) {
-            showWordPreview(newWords);
+            showWordPreview(newWords, processedResult.sanityResults);
         } else {
             showManualInput('No words were detected. You can add words manually instead.');
         }
@@ -442,24 +444,279 @@ async function extractTextFromImages(images) {
     return allText;
 }
 
+// Sanity testing module for OCR results
+function sanityTestWord(word) {
+    // Convert to lowercase for consistent testing
+    const testWord = word.toLowerCase();
+    
+    // 1. Length checks
+    if (testWord.length < 2 || testWord.length > 10) {
+        return { isValid: false, reason: 'length' };
+    }
+    
+    // 2. Check for common OCR artifacts
+    const ocrArtifacts = [
+        'wh', 'th', 'ch', 'sh', 'ph', 'qu', 'ck', 'ng', 'st', 'nd', 'rd', 'th',
+        'll', 'ss', 'ff', 'tt', 'pp', 'mm', 'nn', 'bb', 'dd', 'gg', 'rr', 'vv',
+        'aa', 'ee', 'ii', 'oo', 'uu', 'yy'
+    ];
+    
+    if (ocrArtifacts.includes(testWord)) {
+        return { isValid: false, reason: 'ocr_artifact' };
+    }
+    
+    // 3. Check for inappropriate content (age-appropriate filter)
+    const inappropriateWords = [
+        // Common expletives and variations
+        'damn', 'dammit', 'hell', 'heck', 'crap', 'shit', 'piss', 'fuck', 'fucking', 'fucker',
+        'bitch', 'ass', 'asshole', 'bastard', 'dick', 'cock', 'pussy', 'cunt', 'whore', 'slut',
+        // Common misspellings and variations
+        'fuk', 'fuq', 'fck', 'shyt', 'sh*t', 'f*ck', 'f**k', 'f***', 'a**', 'a***', 'b***h',
+        'd**n', 'h**l', 'c**p', 'p**s', 'd**k', 'c**k', 'p**y', 'c**t', 'w**e', 's**t',
+        // Partial matches and common patterns
+        'fuk', 'fuq', 'fck', 'shyt', 'sh*t', 'f*ck', 'f**k', 'f***', 'a**', 'a***', 'b***h',
+        // Additional variations and common OCR misreads
+        'fukc', 'fuking', 'fukin', 'fuked', 'fukd', 'shyt', 'shytty', 'shytty', 'assh', 'asshole',
+        'bitchy', 'bitchin', 'bitchin', 'dammit', 'dammit', 'hellish', 'hellish', 'crapola',
+        // Common first letter + asterisk patterns
+        'f*', 's*', 'a*', 'b*', 'c*', 'd*', 'h*', 'p*', 'w*'
+    ];
+    
+    if (inappropriateWords.includes(testWord)) {
+        return { isValid: false, reason: 'inappropriate_content' };
+    }
+    
+    // Check for partial matches and common patterns
+    const inappropriatePatterns = [
+        /^f[u*]ck/, /^sh[i*]t/, /^a[s*]s/, /^b[i*]tch/, /^d[a*]mn/, /^h[e*]ll/, /^c[r*]ap/,
+        /^p[i*]ss/, /^d[i*]ck/, /^c[o*]ck/, /^p[u*]ssy/, /^c[u*]nt/, /^w[h*]ore/, /^s[l*]ut/
+    ];
+    
+    for (const pattern of inappropriatePatterns) {
+        if (pattern.test(testWord)) {
+            return { isValid: false, reason: 'inappropriate_pattern' };
+        }
+    }
+    
+    // 4. Check for concatenated words (common OCR issue)
+    const commonWords = [
+        'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+        'a', 'an', 'is', 'it', 'he', 'she', 'we', 'me', 'my', 'you', 'your', 'they',
+        'will', 'can', 'has', 'had', 'was', 'were', 'be', 'been', 'have', 'do', 'does',
+        'did', 'go', 'goes', 'went', 'come', 'came', 'see', 'saw', 'say', 'said',
+        'get', 'got', 'make', 'made', 'take', 'took', 'give', 'gave', 'find', 'found',
+        'look', 'looked', 'like', 'liked', 'want', 'wanted', 'need', 'needed',
+        'play', 'played', 'work', 'worked', 'help', 'helped', 'tell', 'told',
+        'ask', 'asked', 'know', 'knew', 'think', 'thought', 'feel', 'felt',
+        'good', 'bad', 'big', 'small', 'new', 'old', 'long', 'short', 'high', 'low',
+        'first', 'last', 'next', 'then', 'now', 'here', 'there', 'where', 'when',
+        'why', 'how', 'what', 'who', 'which', 'this', 'that', 'these', 'those'
+    ];
+    
+    // Extended word list for concatenation detection
+    const extendedWords = [
+        ...commonWords,
+        'test', 'check', 'try', 'use', 'see', 'look', 'read', 'write', 'draw', 'paint',
+        'sing', 'dance', 'run', 'walk', 'jump', 'play', 'eat', 'drink', 'sleep', 'wake',
+        'open', 'close', 'start', 'stop', 'begin', 'end', 'finish', 'break', 'fix', 'build',
+        'clean', 'wash', 'cook', 'bake', 'buy', 'sell', 'give', 'take', 'bring', 'carry',
+        'push', 'pull', 'lift', 'drop', 'catch', 'throw', 'hit', 'kick', 'touch', 'hold',
+        'let', 'put', 'set', 'get', 'find', 'lose', 'keep', 'save', 'spend', 'cost',
+        'time', 'day', 'night', 'morning', 'evening', 'week', 'month', 'year', 'hour', 'minute',
+        'book', 'page', 'story', 'word', 'letter', 'number', 'name', 'friend', 'family', 'home',
+        'school', 'teacher', 'student', 'class', 'room', 'door', 'window', 'floor', 'wall', 'ceiling',
+        'table', 'chair', 'bed', 'desk', 'box', 'bag', 'cup', 'plate', 'fork', 'spoon',
+        'car', 'bus', 'train', 'plane', 'bike', 'boat', 'road', 'street', 'house', 'tree',
+        'sun', 'moon', 'star', 'cloud', 'rain', 'snow', 'wind', 'hot', 'cold', 'warm',
+        'red', 'blue', 'green', 'yellow', 'black', 'white', 'brown', 'pink', 'purple', 'orange'
+    ];
+    
+    // Enhanced concatenation detection
+    function detectConcatenation(word) {
+        // Check for exact concatenations of two words
+        for (let i = 0; i < extendedWords.length; i++) {
+            for (let j = i + 1; j < extendedWords.length; j++) {
+                const concatenated = extendedWords[i] + extendedWords[j];
+                if (word === concatenated) {
+                    return { isConcatenated: true, parts: [extendedWords[i], extendedWords[j]] };
+                }
+            }
+        }
+        
+        // Check for partial matches (word starts with one word and contains another)
+        for (const word1 of extendedWords) {
+            if (word.startsWith(word1) && word1.length >= 3) {
+                const remaining = word.slice(word1.length);
+                if (remaining.length >= 2) {
+                    for (const word2 of extendedWords) {
+                        if (remaining === word2 || remaining.startsWith(word2)) {
+                            return { isConcatenated: true, parts: [word1, word2] };
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Check for common OCR concatenation patterns
+        const commonPrefixes = ['will', 'can', 'has', 'had', 'was', 'were', 'have', 'do', 'did', 'go', 'come', 'see', 'get', 'make', 'take', 'give', 'find', 'look', 'like', 'want', 'need', 'play', 'work', 'help', 'tell', 'ask', 'know', 'think', 'feel', 'good', 'bad', 'big', 'small', 'new', 'old', 'long', 'short', 'high', 'low', 'first', 'last', 'next', 'then', 'now', 'here', 'there', 'where', 'when', 'why', 'how', 'what', 'who', 'which', 'this', 'that', 'these', 'those'];
+        const commonSuffixes = ['test', 'check', 'try', 'use', 'see', 'look', 'read', 'write', 'draw', 'paint', 'sing', 'dance', 'run', 'walk', 'jump', 'play', 'eat', 'drink', 'sleep', 'wake', 'open', 'close', 'start', 'stop', 'begin', 'end', 'finish', 'break', 'fix', 'build', 'clean', 'wash', 'cook', 'bake', 'buy', 'sell', 'give', 'take', 'bring', 'carry', 'push', 'pull', 'lift', 'drop', 'catch', 'throw', 'hit', 'kick', 'touch', 'hold', 'let', 'put', 'set', 'get', 'find', 'lose', 'keep', 'save', 'spend', 'cost', 'time', 'day', 'night', 'morning', 'evening', 'week', 'month', 'year', 'hour', 'minute', 'book', 'page', 'story', 'word', 'letter', 'number', 'name', 'friend', 'family', 'home', 'school', 'teacher', 'student', 'class', 'room', 'door', 'window', 'floor', 'wall', 'ceiling', 'table', 'chair', 'bed', 'desk', 'box', 'bag', 'cup', 'plate', 'fork', 'spoon', 'car', 'bus', 'train', 'plane', 'bike', 'boat', 'road', 'street', 'house', 'tree', 'sun', 'moon', 'star', 'cloud', 'rain', 'snow', 'wind', 'hot', 'cold', 'warm'];
+        
+        for (const prefix of commonPrefixes) {
+            if (word.startsWith(prefix) && word.length > prefix.length + 2) {
+                const remaining = word.slice(prefix.length);
+                for (const suffix of commonSuffixes) {
+                    if (remaining === suffix || remaining.startsWith(suffix)) {
+                        return { isConcatenated: true, parts: [prefix, suffix] };
+                    }
+                }
+            }
+        }
+        
+        return { isConcatenated: false };
+    }
+    
+    // Check for concatenated words
+    const concatenationResult = detectConcatenation(testWord);
+    if (concatenationResult.isConcatenated) {
+        return { isValid: false, reason: `concatenated_words (${concatenationResult.parts.join('+')})` };
+    }
+    
+    // 5. Check for repeated characters (OCR noise)
+    const repeatedCharPattern = /(.)\1{2,}/; // 3 or more repeated characters
+    if (repeatedCharPattern.test(testWord)) {
+        return { isValid: false, reason: 'repeated_chars' };
+    }
+    
+    // 6. Check for unlikely character combinations
+    const unlikelyPatterns = [
+        /[aeiou]{4,}/, // 4+ consecutive vowels
+        /[bcdfghjklmnpqrstvwxyz]{5,}/, // 5+ consecutive consonants
+        /^[bcdfghjklmnpqrstvwxyz]+$/, // Only consonants
+        /^[aeiou]+$/, // Only vowels (unless it's a valid word)
+    ];
+    
+    for (const pattern of unlikelyPatterns) {
+        if (pattern.test(testWord)) {
+            // Allow some common single-vowel words
+            if (pattern.source === '^[aeiou]+$' && ['a', 'i', 'o'].includes(testWord)) {
+                continue;
+            }
+            return { isValid: false, reason: 'unlikely_pattern' };
+        }
+    }
+    
+    // 7. Check against a list of known valid sight words
+    const validSightWords = [
+        'a', 'about', 'all', 'am', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by',
+        'call', 'can', 'come', 'could', 'day', 'did', 'do', 'down', 'each', 'find', 'first',
+        'for', 'from', 'get', 'go', 'had', 'has', 'have', 'he', 'her', 'here', 'him', 'his',
+        'how', 'if', 'in', 'into', 'is', 'it', 'its', 'just', 'know', 'like', 'long', 'look',
+        'made', 'make', 'many', 'may', 'more', 'my', 'no', 'not', 'now', 'number', 'of', 'on',
+        'one', 'or', 'other', 'out', 'part', 'people', 'said', 'see', 'she', 'so', 'some',
+        'than', 'that', 'the', 'their', 'them', 'then', 'there', 'these', 'they', 'this',
+        'time', 'to', 'two', 'up', 'use', 'was', 'water', 'way', 'we', 'were', 'what',
+        'when', 'which', 'who', 'will', 'with', 'word', 'would', 'write', 'you', 'your',
+        'yesterday', 'today', 'tomorrow', 'morning', 'afternoon', 'evening', 'night'
+    ];
+    
+    // If it's a known sight word, it's valid
+    if (validSightWords.includes(testWord)) {
+        return { isValid: true, reason: 'known_sight_word' };
+    }
+    
+    // 8. Basic English word validation (simple heuristic)
+    // Check if word follows basic English patterns
+    const hasVowel = /[aeiou]/.test(testWord);
+    const hasConsonant = /[bcdfghjklmnpqrstvwxyz]/.test(testWord);
+    const startsWithConsonant = /^[bcdfghjklmnpqrstvwxyz]/.test(testWord);
+    const endsWithVowel = /[aeiou]$/.test(testWord);
+    
+    // Most English words have both vowels and consonants
+    if (!hasVowel || !hasConsonant) {
+        return { isValid: false, reason: 'missing_vowel_or_consonant' };
+    }
+    
+    // 9. Final validation - check if word looks reasonable
+    // Allow words that pass all previous checks and have reasonable length
+    if (testWord.length >= 2 && testWord.length <= 10) {
+        return { isValid: true, reason: 'passed_validation' };
+    }
+    
+    return { isValid: false, reason: 'failed_final_check' };
+}
+
+// Test function for sanity checks (can be removed in production)
+function testSanityChecks() {
+    const testWords = [
+        'yesterday', 'wh', 'willtest', 'cat', 'dog', 'a', 'the', 'supercalifragilisticexpialidocious',
+        // Test inappropriate content filter
+        'damn', 'hell', 'crap', 'shit', 'fuck', 'bitch', 'ass', 'fuk', 'sh*t', 'f*ck',
+        // Test concatenated words
+        'willtest', 'cantest', 'hastest', 'dotest', 'gotest', 'seetest', 'maketest', 'taketest',
+        'willcheck', 'cancheck', 'hascheck', 'docheck', 'gocheck', 'seecheck', 'makecheck', 'takecheck',
+        'willtry', 'cantry', 'hastry', 'dotry', 'gotry', 'seetry', 'maketry', 'taketry',
+        'willuse', 'canuse', 'hasuse', 'douse', 'gouse', 'seeuse', 'makeuse', 'takeuse'
+    ];
+    
+    console.log('Testing sanity checks:');
+    testWords.forEach(word => {
+        const result = sanityTestWord(word);
+        console.log(`"${word}": ${result.isValid ? 'PASS' : 'FAIL'} (${result.reason})`);
+    });
+}
+
 // Process extracted text to find words
 function processExtractedText(text) {
     console.log('Raw extracted text:', text);
     
     // Split text into words and clean them
-    const wordList = text
+    const rawWords = text
         .toLowerCase()
         .split(/\s+/)
         .map(word => word.replace(/[^a-z]/g, '')) // Remove non-letters
-        .filter(word => word.length >= 2 && word.length <= 8) // Filter by length
+        .filter(word => word.length >= 2 && word.length <= 10); // Initial length filter
+    
+    console.log('Initial word list:', rawWords);
+    
+    // Apply sanity testing to each word
+    const sanityResults = rawWords.map(word => ({
+        word: word,
+        ...sanityTestWord(word)
+    }));
+    
+    console.log('Sanity test results:', sanityResults);
+    
+    // Filter out invalid words and get reasons for logging
+    const validWords = [];
+    const invalidWords = [];
+    
+    sanityResults.forEach(result => {
+        if (result.isValid) {
+            validWords.push(result.word);
+        } else {
+            invalidWords.push({ word: result.word, reason: result.reason });
+        }
+    });
+    
+    console.log('Valid words:', validWords);
+    console.log('Invalid words (with reasons):', invalidWords);
+    
+    // Additional filters for valid words
+    const finalWords = validWords
         .filter(word => !['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'your', 'child', 'should', 'know', 'sight', 'word', 'list', 'end', 'grade'].includes(word)) // Remove common words and instructional text
         .filter(word => !word.match(/^(red|blue|green|yellow|black|white|brown|pink|purple|orange)$/)) // Remove color words
         .filter((word, index, arr) => arr.indexOf(word) === index); // Remove duplicates
     
-    console.log('Filtered word list:', wordList);
+    console.log('Final filtered word list:', finalWords);
     
-    // Return all words, not limited to 50
-    return wordList;
+    return {
+        words: finalWords,
+        sanityResults: {
+            validWords: validWords,
+            invalidWords: invalidWords,
+            totalProcessed: rawWords.length
+        }
+    };
 }
 
 // Show processing status
@@ -476,20 +733,48 @@ function hideProcessingStatus() {
     status.style.display = 'none';
 }
 
-// Show word preview
-function showWordPreview(newWords) {
+// Show word preview with sanity test information
+function showWordPreview(newWords, sanityResults = null) {
     detectedWords = newWords;
     const preview = document.getElementById('word-preview');
     const previewWords = document.getElementById('preview-words');
     
     previewWords.innerHTML = '';
+    
+    if (sanityResults) {
+        // Show detailed information about the filtering process
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'sanity-summary';
+        summaryDiv.innerHTML = `
+            <h4>Word Processing Summary:</h4>
+            <p><strong>${newWords.length}</strong> words passed sanity testing and will be added.</p>
+            <p><strong>${sanityResults.invalidWords ? sanityResults.invalidWords.length : 0}</strong> words were filtered out due to OCR issues.</p>
+            <details>
+                <summary>View filtered words and reasons</summary>
+                <div class="filtered-words">
+                    ${sanityResults.invalidWords ? sanityResults.invalidWords.map(item => {
+                        const isInappropriate = item.reason.includes('inappropriate');
+                        return `<div class="filtered-word ${isInappropriate ? 'inappropriate' : ''}"><span class="word">${item.word}</span> <span class="reason">(${item.reason})</span></div>`;
+                    }).join('') : ''}
+                </div>
+            </details>
+        `;
+        previewWords.appendChild(summaryDiv);
+    }
+    
+    // Show the words that will be added
+    const wordsDiv = document.createElement('div');
+    wordsDiv.className = 'words-to-add';
+    wordsDiv.innerHTML = '<h4>Words to be added:</h4>';
+    
     newWords.forEach(word => {
         const wordElement = document.createElement('div');
         wordElement.className = 'preview-word';
         wordElement.textContent = word;
-        previewWords.appendChild(wordElement);
+        wordsDiv.appendChild(wordElement);
     });
     
+    previewWords.appendChild(wordsDiv);
     preview.style.display = 'block';
     
     // Add event listeners for save and cancel buttons
@@ -693,6 +978,12 @@ function init() {
 document.addEventListener('DOMContentLoaded', () => {
     // Small delay to ensure all scripts are loaded
     setTimeout(init, 100);
+    
+    // Test sanity checks (remove in production)
+    setTimeout(() => {
+        console.log('Running sanity check tests...');
+        testSanityChecks();
+    }, 2000);
 });
 
 // Handle page visibility changes to pause/resume speech

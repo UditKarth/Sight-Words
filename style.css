@@ -186,6 +186,100 @@ h1 {
     box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
 }
 
+/* Sanity test results styles */
+.sanity-summary {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-left: 4px solid #4ecdc4;
+}
+
+.sanity-summary h4 {
+    color: #333;
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.sanity-summary p {
+    color: #666;
+    margin-bottom: 8px;
+    text-align: center;
+    font-size: 1rem;
+}
+
+.sanity-summary details {
+    margin-top: 15px;
+}
+
+.sanity-summary summary {
+    color: #4ecdc4;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+    padding: 8px;
+    border-radius: 5px;
+    background: rgba(78, 205, 196, 0.1);
+    transition: background 0.3s ease;
+}
+
+.sanity-summary summary:hover {
+    background: rgba(78, 205, 196, 0.2);
+}
+
+.filtered-words {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.filtered-word {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    margin-bottom: 5px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 5px;
+    font-size: 0.9rem;
+}
+
+.filtered-word .word {
+    font-weight: bold;
+    color: #333;
+}
+
+.filtered-word .reason {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.filtered-word.inappropriate {
+    background: rgba(231, 76, 60, 0.1);
+    border-left: 3px solid #e74c3c;
+}
+
+.filtered-word.inappropriate .reason {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.words-to-add {
+    margin-top: 20px;
+}
+
+.words-to-add h4 {
+    color: #333;
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
 .preview-actions {
     display: flex;
     gap: 15px;
