@@ -676,29 +676,7 @@ function sanityTestWord(word) {
     return { isValid: false, reason: 'failed_final_check' };
 }
 
-// Test function for sanity checks (can be removed in production)
-function testSanityChecks() {
-    const testWords = [
-        'yesterday', 'wh', 'willtest', 'cat', 'dog', 'a', 'the', 'supercalifragilisticexpialidocious',
-        // Test inappropriate content filter
-        'damn', 'hell', 'crap', 'shit', 'fuck', 'bitch', 'ass', 'fuk', 'sh*t', 'f*ck',
-        // Test concatenated words
-        'willtest', 'cantest', 'hastest', 'dotest', 'gotest', 'seetest', 'maketest', 'taketest',
-        'willcheck', 'cancheck', 'hascheck', 'docheck', 'gocheck', 'seecheck', 'makecheck', 'takecheck',
-        'willtry', 'cantry', 'hastry', 'dotry', 'gotry', 'seetry', 'maketry', 'taketry',
-        'willuse', 'canuse', 'hasuse', 'douse', 'gouse', 'seeuse', 'makeuse', 'takeuse',
-        // Test truncated words
-        'uch', 'ave', 'ere', 'ell', 'ith', 'ome', 'ook', 'ake', 'ive', 'ind',
-        // Test OCR character substitution errors
-        'arqund', 'arounn', 'wqrd', 'tqe', 'fqr', 'qf', 'hqme', 'lqqk'
-    ];
-    
-    console.log('Testing sanity checks:');
-    testWords.forEach(word => {
-        const result = sanityTestWord(word);
-        console.log(`"${word}": ${result.isValid ? 'PASS' : 'FAIL'} (${result.reason})`);
-    });
-}
+
 
 // Process extracted text to find words
 function processExtractedText(text) {
@@ -1013,12 +991,6 @@ function init() {
 document.addEventListener('DOMContentLoaded', () => {
     // Small delay to ensure all scripts are loaded
     setTimeout(init, 100);
-    
-    // Test sanity checks (remove in production)
-    setTimeout(() => {
-        console.log('Running sanity check tests...');
-        testSanityChecks();
-    }, 2000);
 });
 
 // Handle page visibility changes to pause/resume speech

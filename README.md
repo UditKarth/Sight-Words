@@ -9,10 +9,12 @@ A vibrant, interactive website designed to help first-grade students learn and p
 - **Visual Feedback**: Words light up and animate when clicked
 - **Audio Feedback**: Gentle beep sound provides additional confirmation
 - **PDF Upload with OCR**: Teachers can upload PDF documents with sight words and have them automatically extracted using OCR technology
+- **Advanced Word Filtering**: Multi-layered sanity checking system to filter out OCR errors and inappropriate content
 - **Drag & Drop Interface**: Easy-to-use drag and drop area for PDF uploads
-- **Word Preview**: Review detected words before adding them to the list
+- **Word Preview with Filtering Details**: Review detected words and see what was filtered out with detailed explanations
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
 - **Child-Friendly UI**: Bright colors, rounded corners, and engaging animations
+- **Age-Appropriate Content**: Built-in filters ensure only appropriate words for first-grade students
 
 ## File Structure
 
@@ -92,11 +94,65 @@ utterance.volume = 1.0;  // Volume (0 to 1)
 The website uses Tesseract.js for OCR processing:
 
 - **Supported Formats**: PDF files with text or scanned images
-- **Processing Limit**: Up to 5 pages per PDF for performance
-- **Word Filtering**: Automatically filters out common words and duplicates
-- **Word Length**: Focuses on words between 2-8 characters (typical sight word length)
+- **Processing Limit**: Up to 3 pages per PDF for optimal performance
+- **Advanced Word Filtering**: Multi-layered sanity checking system that filters out:
+  - OCR artifacts (e.g., "wh", "th", "ch")
+  - Concatenated words (e.g., "willtest" from "will" + "test")
+  - Truncated words (e.g., "uch" from "such", "ave" from "have")
+  - Character substitution errors (e.g., "arqund" from "around")
+  - Inappropriate content for young learners
+  - Repeated characters and unlikely patterns
+- **Word Length**: Accepts words between 2-10 characters (expanded for longer sight words)
+- **Known Word Validation**: Whitelist of valid first-grade sight words
 
 To customize OCR settings, modify the `processExtractedText()` function in `script.js`.
+
+## User Interface & Experience
+
+### **Enhanced Word Preview**
+- **Processing Summary**: Shows total words processed, accepted, and filtered
+- **Filtering Details**: Collapsible section showing what was filtered out and why
+- **Visual Indicators**: Different styling for different types of filtered words
+- **Statistics**: Clear counts of successful vs. rejected words
+
+### **Improved Feedback**
+- **Real-time Processing**: Status updates during PDF processing and OCR
+- **Detailed Logging**: Console output for debugging and understanding the filtering process
+- **Error Handling**: Graceful fallbacks when OCR fails or encounters issues
+- **Success Messages**: Clear confirmation when words are successfully added
+
+## Advanced Word Filtering System
+
+The application includes a comprehensive sanity checking system that filters out problematic OCR results:
+
+### **OCR Artifact Detection**
+- Filters out common OCR noise like "wh", "th", "ch", "sh", "ph", "qu", "ck", "ng"
+- Removes single-letter combinations that aren't valid words
+
+### **Concatenated Word Detection**
+- Identifies words that combine multiple common words (e.g., "willtest" = "will" + "test")
+- Uses an extensive vocabulary list to detect concatenations
+- Prevents OCR errors where words run together
+
+### **Truncated Word Detection**
+- Catches words where the first letter was dropped by OCR
+- Examples: "uch" (from "such"), "ave" (from "have"), "ell" (from "well")
+- Maintains word integrity for proper learning
+
+### **Character Substitution Error Detection**
+- Identifies common OCR misreads where similar characters get confused
+- Examples: "arqund" (from "around"), "wqrd" (from "word"), "tqe" (from "the")
+- Handles common confusions like o↔q, d↔n, h↔q
+
+### **Content Safety Filtering**
+- Built-in inappropriate content filter for age-appropriate learning
+- Blocks expletives and inappropriate language
+- Ensures safe content for first-grade students
+
+### **Pattern Validation**
+- Checks for unlikely character combinations
+- Validates English word patterns (vowels/consonants)
+- Filters out words with excessive repeated characters
 
 ## Word List
 
@@ -106,15 +162,28 @@ The current word list includes 41 first-grade Dolch sight words:
 - know, let, live, may, of, old, once, open, over, put
 - round, some, stop, take, thank, them, then, think, walk, were, when
 
+**Extended Sight Words**: The system also recognizes additional common first-grade words like:
+- yesterday, today, tomorrow, morning, afternoon, evening, night
+- Additional time-related and common vocabulary words
+
 ## Technical Details
 
 - **Speech Synthesis**: Uses `SpeechSynthesisUtterance` for text-to-speech
 - **OCR Processing**: Uses Tesseract.js for PDF text extraction and OCR
 - **PDF Handling**: Uses PDF.js for PDF rendering and conversion to images
+- **Advanced Word Filtering**: Multi-layered sanity checking system with:
+  - OCR artifact detection
+  - Concatenated word detection
+  - Truncated word detection
+  - Character substitution error detection
+  - Inappropriate content filtering
+  - Pattern validation
 - **Event Delegation**: Efficient click handling for dynamically generated buttons
 - **Responsive Grid**: CSS Grid for adaptive layout
 - **Progressive Enhancement**: Graceful degradation if speech synthesis is unavailable
 - **Drag & Drop**: Native HTML5 drag and drop API for file uploads
+- **Visual Feedback**: Detailed word processing summaries and filtering explanations
+- **User Experience**: Enhanced word preview with filtering statistics and explanations
 
 ## License
 
