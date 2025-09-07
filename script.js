@@ -3,6 +3,26 @@ let words = [];
 let speechSynthesis = window.speechSynthesis;
 let detectedWords = [];
 
+// System detection for debugging and optimization
+function getSystemInfo() {
+    return {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        hardwareConcurrency: navigator.hardwareConcurrency,
+        deviceMemory: navigator.deviceMemory,
+        connection: navigator.connection?.effectiveType,
+        timestamp: new Date().toISOString()
+    };
+}
+
+// Log system info for debugging OCR inconsistencies
+function logSystemInfo() {
+    const systemInfo = getSystemInfo();
+    console.log('System Info for OCR debugging:', systemInfo);
+    return systemInfo;
+}
+
 // Configure PDF.js worker
 if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
@@ -389,10 +409,27 @@ async function pdfToImages(file) {
                 for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
                     console.log(`Processing page ${pageNum} of ${maxPages}`);
                     const page = await pdf.getPage(pageNum);
-                    const viewport = page.getViewport({scale: 1.5}); // Reduced scale for better performance
                     
-                    canvas.height = viewport.height;
+                    // Use higher scale and explicit settings for better OCR consistency
+                    const viewport = page.getViewport({
+                        scale: 2.0, // Higher resolution for better OCR
+                        rotation: 0, // Explicit rotation
+                        offsetX: 0,
+                        offsetY: 0
+                    });
+                    
+                    // Set canvas dimensions explicitly
                     canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    canvas.style.width = viewport.width + 'px';
+                    canvas.style.height = viewport.height + 'px';
+                    
+                    // Clear canvas before rendering
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Set white background for better OCR
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                     
                     await page.render({
                         canvasContext: ctx,
@@ -413,15 +450,101 @@ async function pdfToImages(file) {
     });
 }
 
+// Preprocess image for better OCR consistency
+async function preprocessImageForOCR(imageDataUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas dimensions
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Draw image to canvas
+            ctx.drawImage(img, 0, 0);
+            
+            // Get image data for preprocessing
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            // Convert to grayscale and enhance contrast for better OCR
+            for (let i = 0; i < data.length; i += 4) {
+                // Convert to grayscale using luminance formula
+                const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+                
+                // Enhance contrast (simple binarization with threshold)
+                const threshold = 128;
+                const enhanced = gray < threshold ? 0 : 255;
+                
+                data[i] = enhanced;     // Red
+                data[i + 1] = enhanced; // Green
+                data[i + 2] = enhanced; // Blue
+                // Alpha stays the same
+            }
+            
+            // Put processed image data back
+            ctx.putImageData(imageData, 0, 0);
+            
+            // Return processed image as data URL
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = imageDataUrl;
+    });
+}
+
+// Filter OCR results by confidence to ensure quality
+function filterOCRResultByConfidence(result) {
+    const minConfidence = 60; // Minimum confidence threshold
+    
+    // If overall confidence is too low, return empty string
+    if (result.data.confidence < minConfidence) {
+        console.warn(`Low overall OCR confidence: ${result.data.confidence}%`);
+        return '';
+    }
+    
+    // Filter individual words by confidence if available
+    if (result.data.words && result.data.words.length > 0) {
+        const highConfidenceWords = result.data.words
+            .filter(word => word.confidence >= minConfidence)
+            .map(word => word.text.trim())
+            .filter(text => text.length >= 2);
+        
+        return highConfidenceWords.join(' ');
+    }
+    
+    // Fallback to full text if word-level confidence not available
+    return result.data.text;
+}
+
 // Extract text from images using OCR
 async function extractTextFromImages(images) {
     let allText = '';
+    let allConfidenceData = [];
     
     for (let i = 0; i < images.length; i++) {
         showProcessingStatus(`Processing page ${i + 1} of ${images.length} with OCR...`);
         
         try {
-            const result = await Tesseract.recognize(images[i], 'eng', {
+            // Preprocess image for better OCR consistency
+            const processedImage = await preprocessImageForOCR(images[i]);
+            
+            const result = await Tesseract.recognize(processedImage, 'eng', {
+                // Explicit OCR Engine Mode for consistency
+                oem: 3, // DEFAULT mode (Tesseract + LSTM)
+                
+                // Explicit Page Segmentation Mode for consistency
+                psm: 3, // FULLY_AUTOMATIC_PAGE_SEGMENTATION
+                
+                // Additional parameters for consistency across systems
+                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+                tessedit_pageseg_mode: '3',
+                tessedit_ocr_engine_mode: '3',
+                
+                // Confidence threshold for better results
+                tessedit_min_confidence: 60,
+                
                 logger: m => {
                     if (m.status === 'recognizing text') {
                         const progress = Math.round(m.progress * 100);
@@ -432,7 +555,17 @@ async function extractTextFromImages(images) {
             });
             
             console.log(`Page ${i + 1} OCR result:`, result.data.text);
-            allText += result.data.text + ' ';
+            console.log(`Page ${i + 1} OCR confidence:`, result.data.confidence);
+            
+            // Filter results by confidence and collect confidence data
+            const filteredText = filterOCRResultByConfidence(result);
+            allText += filteredText + ' ';
+            allConfidenceData.push({
+                page: i + 1,
+                confidence: result.data.confidence,
+                wordCount: filteredText.split(/\s+/).filter(w => w.length >= 2).length
+            });
+            
             hideProcessingStatus();
         } catch (error) {
             console.warn(`OCR failed for page ${i + 1}:`, error);
@@ -441,6 +574,7 @@ async function extractTextFromImages(images) {
     }
     
     console.log('Total extracted text length:', allText.length);
+    console.log('OCR confidence data:', allConfidenceData);
     return allText;
 }
 
@@ -960,6 +1094,9 @@ function showSuccessMessage(message) {
 
 // Initialize the application
 function init() {
+    // Log system info for debugging OCR inconsistencies
+    logSystemInfo();
+    
     // Check speech support first
     if (!checkSpeechSupport()) {
         return;
