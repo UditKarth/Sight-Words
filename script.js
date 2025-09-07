@@ -112,6 +112,27 @@ function logSystemInfo() {
     return systemInfo;
 }
 
+// Test function to verify character corrections are working
+function testCharacterCorrections() {
+    console.log('Testing character corrections...');
+    
+    const testCases = [
+        'een been al all gradc grade',
+        'ave have ere here there where were',
+        '0o 1l 5s 8b 6g 9g',
+        'rn m cl d li h u n v u w vv'
+    ];
+    
+    testCases.forEach(testCase => {
+        console.log(`Testing: "${testCase}"`);
+        const corrected = correctCharacterErrors(testCase);
+        console.log(`Result: "${corrected}"`);
+        console.log('---');
+    });
+    
+    return 'Character correction test completed. Check console for results.';
+}
+
 // Configure PDF.js worker
 if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
@@ -599,108 +620,72 @@ async function preprocessImageForOCR(imageDataUrl) {
 
 // Correct common character recognition errors for sight words
 function correctCharacterErrors(text) {
-    const isOld = isOlderSystem();
-    if (!isOld) return text; // Only apply corrections for older systems
+    // Apply corrections to ALL systems, not just older ones
+    console.log('Applying character error corrections to:', text);
     
-    // Sight word specific corrections
-    const sightWordCorrections = {
-        // Common sight word errors
-        'al': 'all',
-        'een': 'been', 
-        'ave': 'have',
-        'ere': 'here',
-        'ere': 'there', 
-        'ere': 'where',
-        'ere': 'were',
-        'gradc': 'grade',
-        'grad': 'grade',
-        'gradd': 'grade',
-        'gradr': 'grade',
-        'gradt': 'grade',
-        'gradn': 'grade',
-        'gradm': 'grade',
-        'gradl': 'grade',
-        'gradk': 'grade',
-        'gradj': 'grade',
-        'gradh': 'grade',
-        'gradg': 'grade',
-        'gradf': 'grade',
-        'grade': 'grade', // Keep correct spelling
-        'ell': 'well',
-        'ell': 'tell',
-        'ell': 'sell',
-        'ell': 'bell',
-        'ell': 'fell',
-        'ell': 'hell',
-        'ell': 'yell',
-        'ell': 'cell',
-        'ell': 'shell',
-        'ell': 'smell',
-        'ell': 'spell',
-        'ell': 'swell',
-        'ell': 'dwell',
-        'ell': 'quell',
-        'ell': 'knell',
-        'ell': 'farewell',
-        'ell': 'well',
-        'ell': 'tell',
-        'ell': 'sell',
-        'ell': 'bell',
-        'ell': 'fell',
-        'ell': 'hell',
-        'ell': 'yell',
-        'ell': 'cell',
-        'ell': 'shell',
-        'ell': 'smell',
-        'ell': 'spell',
-        'ell': 'swell',
-        'ell': 'dwell',
-        'ell': 'quell',
-        'ell': 'knell',
-        'ell': 'farewell',
+    // Sight word specific corrections - ordered by specificity (most specific first)
+    const sightWordCorrections = [
+        // Most specific corrections first
+        { error: 'gradc', correction: 'grade' },
+        { error: 'gradd', correction: 'grade' },
+        { error: 'gradr', correction: 'grade' },
+        { error: 'gradt', correction: 'grade' },
+        { error: 'gradn', correction: 'grade' },
+        { error: 'gradm', correction: 'grade' },
+        { error: 'gradl', correction: 'grade' },
+        { error: 'gradk', correction: 'grade' },
+        { error: 'gradj', correction: 'grade' },
+        { error: 'gradh', correction: 'grade' },
+        { error: 'gradg', correction: 'grade' },
+        { error: 'gradf', correction: 'grade' },
+        { error: 'grad', correction: 'grade' },
         
-        // Character substitutions
-        '0': 'o',
-        '1': 'l',
-        '5': 's',
-        '8': 'b',
-        '6': 'g',
-        '9': 'g',
-        '2': 'z',
-        '3': 'e',
-        '4': 'a',
-        '7': 't',
+        // Common sight word errors
+        { error: 'een', correction: 'been' },
+        { error: 'al', correction: 'all' },
+        { error: 'ave', correction: 'have' },
+        { error: 'ere', correction: 'here' },
+        { error: 'ere', correction: 'there' },
+        { error: 'ere', correction: 'where' },
+        { error: 'ere', correction: 'were' },
+        
+        // Character substitutions (numbers to letters)
+        { error: '0', correction: 'o' },
+        { error: '1', correction: 'l' },
+        { error: '5', correction: 's' },
+        { error: '8', correction: 'b' },
+        { error: '6', correction: 'g' },
+        { error: '9', correction: 'g' },
+        { error: '2', correction: 'z' },
+        { error: '3', correction: 'e' },
+        { error: '4', correction: 'a' },
+        { error: '7', correction: 't' },
         
         // Common OCR artifacts
-        'rn': 'm',
-        'cl': 'd',
-        'li': 'h',
-        'n': 'h',
-        'u': 'n',
-        'v': 'u',
-        'w': 'vv',
-        'm': 'rn',
-        'h': 'li',
-        'd': 'cl',
-        
-        // Missing characters at word boundaries
-        'al ': 'all ',
-        'al,': 'all,',
-        'al.': 'all.',
-        'al!': 'all!',
-        'al?': 'all?',
-        'al;': 'all;',
-        'al:': 'all:',
-    };
+        { error: 'rn', correction: 'm' },
+        { error: 'cl', correction: 'd' },
+        { error: 'li', correction: 'h' },
+        { error: 'u', correction: 'n' },
+        { error: 'v', correction: 'u' },
+        { error: 'w', correction: 'vv' },
+    ];
     
     let correctedText = text;
     
     // Apply corrections with word boundaries
-    for (const [error, correction] of Object.entries(sightWordCorrections)) {
+    for (const { error, correction } of sightWordCorrections) {
+        // Use word boundaries to avoid partial matches
         const regex = new RegExp(`\\b${error}\\b`, 'gi');
+        const beforeReplace = correctedText;
         correctedText = correctedText.replace(regex, correction);
+        
+        // Log if a correction was made
+        if (beforeReplace !== correctedText) {
+            console.log(`Corrected "${error}" to "${correction}" in: ${beforeReplace} -> ${correctedText}`);
+        }
     }
     
+    console.log('Final corrected text:', correctedText);
     return correctedText;
 }
 
@@ -724,10 +709,8 @@ function filterOCRResultByConfidence(result) {
         
         let resultText = highConfidenceWords.join(' ');
         
-        // Apply character error corrections for older systems
-        if (isOld) {
-            resultText = correctCharacterErrors(resultText);
-        }
+        // Apply character error corrections to ALL systems
+        resultText = correctCharacterErrors(resultText);
         
         return resultText;
     }
@@ -735,10 +718,8 @@ function filterOCRResultByConfidence(result) {
     // Fallback to full text if word-level confidence not available
     let resultText = result.data.text;
     
-    // Apply character error corrections for older systems
-    if (isOld) {
-        resultText = correctCharacterErrors(resultText);
-    }
+    // Apply character error corrections to ALL systems
+    resultText = correctCharacterErrors(resultText);
     
     return resultText;
 }
