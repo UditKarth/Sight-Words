@@ -16,6 +16,87 @@ function getSystemInfo() {
     };
 }
 
+// Detect if system is likely to have performance issues
+function isOlderSystem() {
+    const systemInfo = getSystemInfo();
+    const userAgent = systemInfo.userAgent.toLowerCase();
+    
+    // Check for older browsers
+    const isOldBrowser = userAgent.includes('chrome/') && 
+        (userAgent.includes('chrome/7') || userAgent.includes('chrome/8') || 
+         userAgent.includes('chrome/9') || userAgent.includes('chrome/10'));
+    
+    // Check for limited hardware
+    const isLimitedHardware = 
+        (systemInfo.hardwareConcurrency && systemInfo.hardwareConcurrency < 4) ||
+        (systemInfo.deviceMemory && systemInfo.deviceMemory < 4) ||
+        systemInfo.platform.includes('Win32') && userAgent.includes('chrome/8');
+    
+    // Check for older operating systems
+    const isOldOS = userAgent.includes('windows nt 6.1') || // Windows 7
+                   userAgent.includes('windows nt 6.0') || // Windows Vista
+                   userAgent.includes('mac os x 10_') && userAgent.includes('safari/6');
+    
+    return isOldBrowser || isLimitedHardware || isOldOS;
+}
+
+// Get optimized OCR configuration based on system capabilities
+function getOptimizedOCRConfig() {
+    const isOld = isOlderSystem();
+    const systemInfo = getSystemInfo();
+    
+    console.log('System performance assessment:', {
+        isOlderSystem: isOld,
+        hardwareConcurrency: systemInfo.hardwareConcurrency,
+        deviceMemory: systemInfo.deviceMemory,
+        platform: systemInfo.platform
+    });
+    
+    if (isOld) {
+        // Optimized settings for older systems - focused on character accuracy
+        return {
+            oem: 3, // DEFAULT mode (Tesseract + LSTM) - better character recognition
+            psm: 3, // FULLY_AUTOMATIC_PAGE_SEGMENTATION - better for word boundaries
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+            tessedit_pageseg_mode: '3',
+            tessedit_ocr_engine_mode: '3',
+            tessedit_min_confidence: 60, // Keep high threshold for accuracy
+            
+            // Character recognition improvements for older systems
+            tessedit_char_blacklist: '0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/~`', // Exclude numbers and symbols
+            textord_min_linesize: '2.0', // Smaller minimum line size for better character detection
+            textord_old_baselines: '1', // Enable baseline detection for better character alignment
+            textord_old_xheight: '1', // Enable x-height detection for better character sizing
+            
+            // Character-specific improvements
+            classify_bln_numeric_mode: '0', // Disable numeric mode
+            textord_heavy_nr: '1', // Enable heavy noise reduction
+            textord_min_xheight: '8', // Minimum character height
+            textord_tabfind_show_vlines: '0', // Disable vertical line detection
+            
+            // Word recognition improvements
+            textord_really_old_xheight: '1', // Use old x-height algorithm for consistency
+            textord_old_to_method: '1', // Use old text orientation method
+            textord_old_baseline_method: '1', // Use old baseline method
+            
+            // Disable problematic features that can cause character misrecognition
+            tessedit_do_invert: '0', // Disable inversion
+            textord_force_make_prop_words: '0', // Disable forced proportional words
+            textord_min_linesize: '2.0', // Ensure minimum line size
+        };
+    } else {
+        // Standard settings for modern systems
+        return {
+            oem: 3, // DEFAULT mode (Tesseract + LSTM)
+            psm: 3, // FULLY_AUTOMATIC_PAGE_SEGMENTATION
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+            tessedit_pageseg_mode: '3',
+            tessedit_ocr_engine_mode: '3',
+            tessedit_min_confidence: 60,
+        };
+    }
+}
+
 // Log system info for debugging OCR inconsistencies
 function logSystemInfo() {
     const systemInfo = getSystemInfo();
@@ -410,9 +491,12 @@ async function pdfToImages(file) {
                     console.log(`Processing page ${pageNum} of ${maxPages}`);
                     const page = await pdf.getPage(pageNum);
                     
-                    // Use higher scale and explicit settings for better OCR consistency
+                    // Adaptive scale based on system capabilities
+                    const isOld = isOlderSystem();
+                    const scale = isOld ? 2.5 : 2.0; // Higher scale for older systems to improve character recognition
+                    
                     const viewport = page.getViewport({
-                        scale: 2.0, // Higher resolution for better OCR
+                        scale: scale, // Adaptive resolution for system capabilities
                         rotation: 0, // Explicit rotation
                         offsetX: 0,
                         offsetY: 0
@@ -450,7 +534,7 @@ async function pdfToImages(file) {
     });
 }
 
-// Preprocess image for better OCR consistency
+// Preprocess image for better OCR consistency with adaptive settings
 async function preprocessImageForOCR(imageDataUrl) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -458,25 +542,50 @@ async function preprocessImageForOCR(imageDataUrl) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // Set canvas dimensions
-            canvas.width = img.width;
-            canvas.height = img.height;
+            // For older systems, use higher resolution to improve character recognition
+            const isOld = isOlderSystem();
+            let scaleFactor = 1.0;
             
-            // Draw image to canvas
-            ctx.drawImage(img, 0, 0);
+            if (isOld) {
+                // Use higher resolution for better character recognition on older systems
+                scaleFactor = 1.2; // Increase resolution instead of decreasing
+                canvas.width = Math.floor(img.width * scaleFactor);
+                canvas.height = Math.floor(img.height * scaleFactor);
+            } else {
+                canvas.width = img.width;
+                canvas.height = img.height;
+            }
+            
+            // Draw image to canvas with scaling if needed
+            if (isOld) {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.drawImage(img, 0, 0);
+            }
             
             // Get image data for preprocessing
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             
-            // Convert to grayscale and enhance contrast for better OCR
+            // Enhanced preprocessing for character recognition accuracy
             for (let i = 0; i < data.length; i += 4) {
                 // Convert to grayscale using luminance formula
                 const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
                 
-                // Enhance contrast (simple binarization with threshold)
-                const threshold = 128;
-                const enhanced = gray < threshold ? 0 : 255;
+                // Adaptive threshold based on system capabilities
+                let threshold = 128;
+                if (isOld) {
+                    // Use more conservative threshold for older systems to preserve character details
+                    threshold = 120; // Lower threshold to preserve more character information
+                }
+                
+                // Apply adaptive thresholding with some smoothing
+                let enhanced;
+                if (gray < threshold) {
+                    enhanced = 0; // Black for text
+                } else {
+                    enhanced = 255; // White for background
+                }
                 
                 data[i] = enhanced;     // Red
                 data[i + 1] = enhanced; // Green
@@ -494,13 +603,108 @@ async function preprocessImageForOCR(imageDataUrl) {
     });
 }
 
+// Correct common character recognition errors
+function correctCharacterErrors(text) {
+    const isOld = isOlderSystem();
+    if (!isOld) return text; // Only apply corrections for older systems
+    
+    // Common character misrecognition patterns
+    const corrections = {
+        // Missing letters (e.g., 'al' -> 'all', 'een' -> 'been')
+        'al': 'all',
+        'een': 'been',
+        'ave': 'have',
+        'ere': 'here',
+        'ere': 'there',
+        'ere': 'where',
+        'ere': 'were',
+        'ell': 'well',
+        'ell': 'tell',
+        'ell': 'sell',
+        'ell': 'bell',
+        'ell': 'fell',
+        'ell': 'hell',
+        'ell': 'yell',
+        'ell': 'cell',
+        'ell': 'shell',
+        'ell': 'smell',
+        'ell': 'spell',
+        'ell': 'swell',
+        'ell': 'dwell',
+        'ell': 'quell',
+        'ell': 'knell',
+        'ell': 'farewell',
+        'ell': 'well',
+        'ell': 'tell',
+        'ell': 'sell',
+        'ell': 'bell',
+        'ell': 'fell',
+        'ell': 'hell',
+        'ell': 'yell',
+        'ell': 'cell',
+        'ell': 'shell',
+        'ell': 'smell',
+        'ell': 'spell',
+        'ell': 'swell',
+        'ell': 'dwell',
+        'ell': 'quell',
+        'ell': 'knell',
+        'ell': 'farewell',
+        
+        // Character substitutions (e.g., '0' -> 'o', '1' -> 'l')
+        '0': 'o',
+        '1': 'l',
+        '5': 's',
+        '8': 'b',
+        '6': 'g',
+        '9': 'g',
+        '2': 'z',
+        '3': 'e',
+        '4': 'a',
+        '7': 't',
+        
+        // Common OCR artifacts
+        'rn': 'm',
+        'cl': 'd',
+        'li': 'h',
+        'n': 'h',
+        'u': 'n',
+        'v': 'u',
+        'w': 'vv',
+        'm': 'rn',
+        'h': 'li',
+        'd': 'cl',
+        
+        // Missing characters at word boundaries
+        'al ': 'all ',
+        'al,': 'all,',
+        'al.': 'all.',
+        'al!': 'all!',
+        'al?': 'all?',
+        'al;': 'all;',
+        'al:': 'all:',
+    };
+    
+    let correctedText = text;
+    
+    // Apply corrections
+    for (const [error, correction] of Object.entries(corrections)) {
+        // Use word boundaries to avoid partial matches
+        const regex = new RegExp(`\\b${error}\\b`, 'gi');
+        correctedText = correctedText.replace(regex, correction);
+    }
+    
+    return correctedText;
+}
+
 // Filter OCR results by confidence to ensure quality
 function filterOCRResultByConfidence(result) {
-    const minConfidence = 60; // Minimum confidence threshold
+    const isOld = isOlderSystem();
+    const minConfidence = isOld ? 40 : 60; // Lower threshold for older systems
     
     // If overall confidence is too low, return empty string
     if (result.data.confidence < minConfidence) {
-        console.warn(`Low overall OCR confidence: ${result.data.confidence}%`);
+        console.warn(`Low overall OCR confidence: ${result.data.confidence}% (threshold: ${minConfidence}%)`);
         return '';
     }
     
@@ -511,15 +715,69 @@ function filterOCRResultByConfidence(result) {
             .map(word => word.text.trim())
             .filter(text => text.length >= 2);
         
-        return highConfidenceWords.join(' ');
+        let resultText = highConfidenceWords.join(' ');
+        
+        // Apply character error corrections for older systems
+        if (isOld) {
+            resultText = correctCharacterErrors(resultText);
+        }
+        
+        return resultText;
     }
     
     // Fallback to full text if word-level confidence not available
-    return result.data.text;
+    let resultText = result.data.text;
+    
+    // Apply character error corrections for older systems
+    if (isOld) {
+        resultText = correctCharacterErrors(resultText);
+    }
+    
+    return resultText;
+}
+
+// Fallback OCR processing for very old systems
+async function fallbackOCRProcessing(images) {
+    console.log('Using fallback OCR processing for older system');
+    let allText = '';
+    
+    for (let i = 0; i < images.length; i++) {
+        try {
+            // Use minimal configuration for maximum compatibility
+            const result = await Tesseract.recognize(images[i], 'eng', {
+                oem: 1, // LSTM_ONLY (most compatible)
+                psm: 6, // SINGLE_UNIFORM_BLOCK (fastest)
+                tessedit_min_confidence: 30, // Very low threshold
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        const progress = Math.round(m.progress * 100);
+                        showProcessingStatus(`Fallback processing page ${i + 1}... ${progress}%`);
+                    }
+                }
+            });
+            
+            // Accept any result with confidence > 30%
+            if (result.data.confidence > 30) {
+                allText += result.data.text + ' ';
+            }
+        } catch (error) {
+            console.warn(`Fallback OCR failed for page ${i + 1}:`, error);
+        }
+    }
+    
+    return allText;
 }
 
 // Extract text from images using OCR
 async function extractTextFromImages(images) {
+    const isOld = isOlderSystem();
+    
+    // For very old systems, use fallback processing
+    if (isOld && (navigator.hardwareConcurrency < 2 || navigator.deviceMemory < 2)) {
+        console.log('Detected very old system, using fallback OCR processing');
+        return await fallbackOCRProcessing(images);
+    }
+    
     let allText = '';
     let allConfidenceData = [];
     
@@ -530,20 +788,11 @@ async function extractTextFromImages(images) {
             // Preprocess image for better OCR consistency
             const processedImage = await preprocessImageForOCR(images[i]);
             
+            // Get optimized configuration based on system capabilities
+            const ocrConfig = getOptimizedOCRConfig();
+            
             const result = await Tesseract.recognize(processedImage, 'eng', {
-                // Explicit OCR Engine Mode for consistency
-                oem: 3, // DEFAULT mode (Tesseract + LSTM)
-                
-                // Explicit Page Segmentation Mode for consistency
-                psm: 3, // FULLY_AUTOMATIC_PAGE_SEGMENTATION
-                
-                // Additional parameters for consistency across systems
-                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-                tessedit_pageseg_mode: '3',
-                tessedit_ocr_engine_mode: '3',
-                
-                // Confidence threshold for better results
-                tessedit_min_confidence: 60,
+                ...ocrConfig,
                 
                 logger: m => {
                     if (m.status === 'recognizing text') {
@@ -569,6 +818,24 @@ async function extractTextFromImages(images) {
             hideProcessingStatus();
         } catch (error) {
             console.warn(`OCR failed for page ${i + 1}:`, error);
+            
+            // If standard OCR fails on older systems, try fallback
+            if (isOld) {
+                console.log('Attempting fallback OCR for failed page');
+                try {
+                    const fallbackResult = await Tesseract.recognize(images[i], 'eng', {
+                        oem: 1,
+                        psm: 6,
+                        tessedit_min_confidence: 30
+                    });
+                    if (fallbackResult.data.confidence > 30) {
+                        allText += fallbackResult.data.text + ' ';
+                    }
+                } catch (fallbackError) {
+                    console.warn('Fallback OCR also failed:', fallbackError);
+                }
+            }
+            
             hideProcessingStatus();
         }
     }
