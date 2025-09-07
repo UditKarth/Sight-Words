@@ -53,25 +53,25 @@ function getOptimizedOCRConfig() {
     });
     
     if (isOld) {
-        // Optimized settings for older systems - focused on character accuracy
+        // Optimized settings for older systems - black and white sight word documents
         return {
             oem: 3, // DEFAULT mode (Tesseract + LSTM) - better character recognition
-            psm: 3, // FULLY_AUTOMATIC_PAGE_SEGMENTATION - better for word boundaries
+            psm: 6, // SINGLE_UNIFORM_BLOCK - better for uniform text blocks like sight word lists
             tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-            tessedit_pageseg_mode: '3',
+            tessedit_pageseg_mode: '6',
             tessedit_ocr_engine_mode: '3',
-            tessedit_min_confidence: 60, // Keep high threshold for accuracy
+            tessedit_min_confidence: 50, // Slightly lower for older systems
             
-            // Character recognition improvements for older systems
+            // Black and white document optimizations
             tessedit_char_blacklist: '0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/~`', // Exclude numbers and symbols
-            textord_min_linesize: '2.0', // Smaller minimum line size for better character detection
+            textord_min_linesize: '1.5', // Smaller minimum line size for better character detection
             textord_old_baselines: '1', // Enable baseline detection for better character alignment
             textord_old_xheight: '1', // Enable x-height detection for better character sizing
             
-            // Character-specific improvements
+            // Character-specific improvements for sight words
             classify_bln_numeric_mode: '0', // Disable numeric mode
             textord_heavy_nr: '1', // Enable heavy noise reduction
-            textord_min_xheight: '8', // Minimum character height
+            textord_min_xheight: '6', // Smaller minimum character height for sight words
             textord_tabfind_show_vlines: '0', // Disable vertical line detection
             
             // Word recognition improvements
@@ -79,20 +79,28 @@ function getOptimizedOCRConfig() {
             textord_old_to_method: '1', // Use old text orientation method
             textord_old_baseline_method: '1', // Use old baseline method
             
-            // Disable problematic features that can cause character misrecognition
+            // Black and white document specific settings
             tessedit_do_invert: '0', // Disable inversion
             textord_force_make_prop_words: '0', // Disable forced proportional words
-            textord_min_linesize: '2.0', // Ensure minimum line size
+            textord_min_linesize: '1.5', // Ensure minimum line size
+            textord_old_baselines: '1', // Enable old baseline detection
+            textord_old_xheight: '1', // Enable old x-height detection
+            
+            // Additional settings for better character recognition
+            textord_heavy_nr: '1', // Heavy noise reduction
+            textord_min_xheight: '6', // Minimum character height
+            textord_tabfind_show_vlines: '0', // Disable vertical line detection
         };
     } else {
-        // Standard settings for modern systems
+        // Standard settings for modern systems - optimized for black and white documents
         return {
             oem: 3, // DEFAULT mode (Tesseract + LSTM)
-            psm: 3, // FULLY_AUTOMATIC_PAGE_SEGMENTATION
+            psm: 6, // SINGLE_UNIFORM_BLOCK - better for sight word lists
             tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-            tessedit_pageseg_mode: '3',
+            tessedit_pageseg_mode: '6',
             tessedit_ocr_engine_mode: '3',
             tessedit_min_confidence: 60,
+            tessedit_char_blacklist: '0123456789!@#$%^&*()_+-=[]{}|;:,.<>?/~`', // Exclude numbers and symbols
         };
     }
 }
@@ -534,7 +542,7 @@ async function pdfToImages(file) {
     });
 }
 
-// Preprocess image for better OCR consistency with adaptive settings
+// Preprocess image optimized for black and white sight word documents
 async function preprocessImageForOCR(imageDataUrl) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -542,49 +550,35 @@ async function preprocessImageForOCR(imageDataUrl) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            // For older systems, use higher resolution to improve character recognition
+            // Use high resolution for all systems to improve character recognition
             const isOld = isOlderSystem();
-            let scaleFactor = 1.0;
+            const scaleFactor = isOld ? 1.5 : 1.3; // Higher resolution for better character clarity
             
-            if (isOld) {
-                // Use higher resolution for better character recognition on older systems
-                scaleFactor = 1.2; // Increase resolution instead of decreasing
-                canvas.width = Math.floor(img.width * scaleFactor);
-                canvas.height = Math.floor(img.height * scaleFactor);
-            } else {
-                canvas.width = img.width;
-                canvas.height = img.height;
-            }
+            canvas.width = Math.floor(img.width * scaleFactor);
+            canvas.height = Math.floor(img.height * scaleFactor);
             
-            // Draw image to canvas with scaling if needed
-            if (isOld) {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            } else {
-                ctx.drawImage(img, 0, 0);
-            }
+            // Draw image to canvas with scaling
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             
             // Get image data for preprocessing
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             
-            // Enhanced preprocessing for character recognition accuracy
+            // Optimized preprocessing for black and white sight word documents
             for (let i = 0; i < data.length; i += 4) {
                 // Convert to grayscale using luminance formula
                 const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
                 
-                // Adaptive threshold based on system capabilities
-                let threshold = 128;
-                if (isOld) {
-                    // Use more conservative threshold for older systems to preserve character details
-                    threshold = 120; // Lower threshold to preserve more character information
-                }
+                // Aggressive thresholding for black and white documents
+                // Use a higher threshold to ensure clean separation
+                const threshold = isOld ? 150 : 140; // Higher threshold for cleaner binarization
                 
-                // Apply adaptive thresholding with some smoothing
+                // Apply strict black/white thresholding
                 let enhanced;
                 if (gray < threshold) {
-                    enhanced = 0; // Black for text
+                    enhanced = 0; // Pure black for text
                 } else {
-                    enhanced = 255; // White for background
+                    enhanced = 255; // Pure white for background
                 }
                 
                 data[i] = enhanced;     // Red
@@ -603,21 +597,35 @@ async function preprocessImageForOCR(imageDataUrl) {
     });
 }
 
-// Correct common character recognition errors
+// Correct common character recognition errors for sight words
 function correctCharacterErrors(text) {
     const isOld = isOlderSystem();
     if (!isOld) return text; // Only apply corrections for older systems
     
-    // Common character misrecognition patterns
-    const corrections = {
-        // Missing letters (e.g., 'al' -> 'all', 'een' -> 'been')
+    // Sight word specific corrections
+    const sightWordCorrections = {
+        // Common sight word errors
         'al': 'all',
-        'een': 'been',
+        'een': 'been', 
         'ave': 'have',
         'ere': 'here',
-        'ere': 'there',
+        'ere': 'there', 
         'ere': 'where',
         'ere': 'were',
+        'gradc': 'grade',
+        'grad': 'grade',
+        'gradd': 'grade',
+        'gradr': 'grade',
+        'gradt': 'grade',
+        'gradn': 'grade',
+        'gradm': 'grade',
+        'gradl': 'grade',
+        'gradk': 'grade',
+        'gradj': 'grade',
+        'gradh': 'grade',
+        'gradg': 'grade',
+        'gradf': 'grade',
+        'grade': 'grade', // Keep correct spelling
         'ell': 'well',
         'ell': 'tell',
         'ell': 'sell',
@@ -651,7 +659,7 @@ function correctCharacterErrors(text) {
         'ell': 'knell',
         'ell': 'farewell',
         
-        // Character substitutions (e.g., '0' -> 'o', '1' -> 'l')
+        // Character substitutions
         '0': 'o',
         '1': 'l',
         '5': 's',
@@ -687,9 +695,8 @@ function correctCharacterErrors(text) {
     
     let correctedText = text;
     
-    // Apply corrections
-    for (const [error, correction] of Object.entries(corrections)) {
-        // Use word boundaries to avoid partial matches
+    // Apply corrections with word boundaries
+    for (const [error, correction] of Object.entries(sightWordCorrections)) {
         const regex = new RegExp(`\\b${error}\\b`, 'gi');
         correctedText = correctedText.replace(regex, correction);
     }
