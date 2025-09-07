@@ -172,16 +172,16 @@ async function fetchWords() {
     try {
         showLoading();
         
-        // First, try to load words from the example PDF using OCR
-        console.log('Attempting to load words from example PDF...');
-        const pdfWords = await loadWordsFromExamplePDF();
+        // First, try to load words from the Red words list.docx file
+        console.log('Attempting to load words from Red words list.docx...');
+        const docxWords = await loadWordsFromDOCX();
         
-        if (pdfWords && pdfWords.length > 0) {
-            console.log(`Successfully loaded ${pdfWords.length} words from PDF`);
-            words = pdfWords;
+        if (docxWords && docxWords.length > 0) {
+            console.log(`Successfully loaded ${docxWords.length} words from DOCX`);
+            words = docxWords;
             
             // Show success message first
-            showSuccessMessage(`Successfully loaded ${pdfWords.length} words from PDF!`);
+            showSuccessMessage(`Successfully loaded ${docxWords.length} words from DOCX!`);
             
             // Generate word buttons after a short delay to ensure success message is shown
             setTimeout(() => {
@@ -191,8 +191,8 @@ async function fetchWords() {
             return;
         }
         
-        // Fallback to CSV if PDF OCR fails
-        console.log('PDF OCR failed or no words found, trying CSV file...');
+        // Fallback to CSV if DOCX loading fails
+        console.log('DOCX loading failed or no words found, trying CSV file...');
         const response = await fetch('words.csv');
         
         if (!response.ok) {
@@ -231,28 +231,36 @@ async function fetchWords() {
     }
 }
 
-// Load words from the example PDF using OCR
-async function loadWordsFromExamplePDF() {
+// Load words from the Red words list.docx file
+async function loadWordsFromDOCX() {
     try {
-        console.log('Loading example PDF...');
-        showLoadingStatus('Loading example PDF...');
+        console.log('Loading Red words list.docx...');
+        showLoadingStatus('Loading Red words list.docx...');
         
-        const response = await fetch('sightwordexample.pdf');
-        
-        if (!response.ok) {
-            throw new Error(`Failed to load PDF: ${response.status}`);
+        // Check if mammoth is available
+        if (typeof mammoth === 'undefined') {
+            throw new Error('Mammoth.js library not loaded. Please refresh the page and try again.');
         }
         
-        const pdfBlob = await response.blob();
-        const pdfFile = new File([pdfBlob], 'sightwordexample.pdf', { type: 'application/pdf' });
+        const response = await fetch('Red words list.docx');
         
-        console.log('Converting PDF to images...');
-        showLoadingStatus('Converting PDF to images...');
-        const images = await pdfToImages(pdfFile);
+        if (!response.ok) {
+            throw new Error(`Failed to load DOCX: ${response.status}`);
+        }
         
-        console.log('Extracting text with OCR...');
-        showLoadingStatus('Extracting text with OCR...');
-        const extractedText = await extractTextFromImages(images);
+        console.log('Extracting text from DOCX...');
+        showLoadingStatus('Extracting text from DOCX...');
+        
+        const docxBlob = await response.blob();
+        const result = await mammoth.extractRawText({arrayBuffer: await docxBlob.arrayBuffer()});
+        const extractedText = result.value;
+        
+        console.log('DOCX extracted text:', extractedText);
+        
+        if (!extractedText || extractedText.trim().length === 0) {
+            console.warn('No text found in DOCX file');
+            return null;
+        }
         
         console.log('Processing extracted text...');
         showLoadingStatus('Processing extracted text...');
@@ -263,12 +271,12 @@ async function loadWordsFromExamplePDF() {
         
         // Check if we have valid words
         if (processedWords.length === 0) {
-            console.warn('No valid words extracted from PDF');
+            console.warn('No valid words extracted from DOCX');
             return null;
         }
         
         // Show completion message
-        showLoadingStatus(`PDF processing complete! Found ${processedWords.length} words.`);
+        showLoadingStatus(`DOCX processing complete! Found ${processedWords.length} words.`);
         
         // Clear the loading status after a short delay
         setTimeout(() => {
@@ -278,8 +286,8 @@ async function loadWordsFromExamplePDF() {
         return processedWords;
         
     } catch (error) {
-        console.error('Error loading words from PDF:', error);
-        showLoadingStatus(`PDF processing failed: ${error.message}`);
+        console.error('Error loading words from DOCX:', error);
+        showLoadingStatus(`DOCX processing failed: ${error.message}`);
         setTimeout(() => {
             hideLoadingStatus();
         }, 3000);
@@ -287,7 +295,7 @@ async function loadWordsFromExamplePDF() {
     }
 }
 
-// Show loading status for initial PDF processing
+// Show loading status for initial DOCX processing
 function showLoadingStatus(message) {
     const container = document.getElementById('word-container');
     // Clear any existing loading messages first
@@ -420,10 +428,10 @@ function playClickSound() {
     }
 }
 
-// PDF Upload and OCR Functions
-function initializePDFUpload() {
+// File Upload and Processing Functions
+function initializeFileUpload() {
     const uploadArea = document.getElementById('upload-area');
-    const pdfInput = document.getElementById('pdf-input');
+    const fileInput = document.getElementById('file-input');
     
     // Drag and drop functionality
     uploadArea.addEventListener('dragover', (e) => {
@@ -439,22 +447,39 @@ function initializePDFUpload() {
         e.preventDefault();
         uploadArea.classList.remove('dragover');
         const files = e.dataTransfer.files;
-        if (files.length > 0 && files[0].type === 'application/pdf') {
-            processPDF(files[0]);
+        if (files.length > 0) {
+            processFile(files[0]);
         }
     });
     
     // File input change
-    pdfInput.addEventListener('change', (e) => {
+    fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
-            processPDF(e.target.files[0]);
+            processFile(e.target.files[0]);
         }
     });
     
     // Click to upload
     uploadArea.addEventListener('click', () => {
-        pdfInput.click();
+        fileInput.click();
     });
+}
+
+// Process uploaded file (PDF or DOCX)
+async function processFile(file) {
+    const fileType = file.type;
+    const fileName = file.name.toLowerCase();
+    
+    console.log('Processing file:', fileName, 'Type:', fileType);
+    
+    // Check file type and process accordingly
+    if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        await processPDF(file);
+    } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileName.endsWith('.docx')) {
+        await processDOCX(file);
+    } else {
+        showError('Unsupported file type. Please upload a PDF or DOCX file.');
+    }
 }
 
 // Process uploaded PDF
@@ -492,6 +517,55 @@ async function processPDF(file) {
             showManualInput('OCR processing failed. You can add words manually instead.');
         } else {
             showError(`Error processing PDF: ${error.message}`);
+        }
+    }
+}
+
+// Process uploaded DOCX file
+async function processDOCX(file) {
+    try {
+        showProcessingStatus('Loading DOCX file...');
+        
+        // Check if mammoth is available
+        if (typeof mammoth === 'undefined') {
+            throw new Error('Mammoth.js library not loaded. Please refresh the page and try again.');
+        }
+        
+        showProcessingStatus('Extracting text from DOCX...');
+        
+        // Extract text from DOCX using mammoth
+        const result = await mammoth.extractRawText({arrayBuffer: await file.arrayBuffer()});
+        const extractedText = result.value;
+        
+        console.log('DOCX extracted text:', extractedText);
+        
+        if (!extractedText || extractedText.trim().length === 0) {
+            showManualInput('No text was found in the DOCX file. You can add words manually instead.');
+            return;
+        }
+        
+        showProcessingStatus('Processing words...');
+        
+        // Process and filter words (same as PDF processing)
+        const processedResult = processExtractedText(extractedText);
+        const newWords = processedResult.words;
+        
+        hideProcessingStatus();
+        
+        if (newWords.length > 0) {
+            showWordPreview(newWords, processedResult.sanityResults);
+        } else {
+            showManualInput('No valid words were found in the DOCX file. You can add words manually instead.');
+        }
+        
+    } catch (error) {
+        console.error('Error processing DOCX:', error);
+        hideProcessingStatus();
+        
+        if (error.message.includes('Mammoth')) {
+            showManualInput('DOCX processing failed. The mammoth.js library may not be loaded. You can add words manually instead.');
+        } else {
+            showError(`Error processing DOCX: ${error.message}`);
         }
     }
 }
@@ -1143,13 +1217,20 @@ function showWordPreview(newWords, sanityResults = null) {
     
     previewWords.innerHTML = '';
     
+    // Calculate how many words are actually new vs. already existing
+    const existingWordsSet = new Set(words);
+    const actuallyNewWords = newWords.filter(word => !existingWordsSet.has(word));
+    const alreadyExistingWords = newWords.filter(word => existingWordsSet.has(word));
+    
     if (sanityResults) {
         // Show detailed information about the filtering process
         const summaryDiv = document.createElement('div');
         summaryDiv.className = 'sanity-summary';
         summaryDiv.innerHTML = `
             <h4>Word Processing Summary:</h4>
-            <p><strong>${newWords.length}</strong> words passed sanity testing and will be added.</p>
+            <p><strong>${newWords.length}</strong> words passed sanity testing.</p>
+            <p><strong>${actuallyNewWords.length}</strong> new words will be added.</p>
+            <p><strong>${alreadyExistingWords.length}</strong> words are already in your list.</p>
             <p><strong>${sanityResults.invalidWords ? sanityResults.invalidWords.length : 0}</strong> words were filtered out due to OCR issues.</p>
             <details>
                 <summary>View filtered words and reasons</summary>
@@ -1162,17 +1243,29 @@ function showWordPreview(newWords, sanityResults = null) {
             </details>
         `;
         previewWords.appendChild(summaryDiv);
+    } else {
+        // Show summary for manually added words
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'sanity-summary';
+        summaryDiv.innerHTML = `
+            <h4>Word Summary:</h4>
+            <p><strong>${newWords.length}</strong> words entered.</p>
+            <p><strong>${actuallyNewWords.length}</strong> new words will be added.</p>
+            <p><strong>${alreadyExistingWords.length}</strong> words are already in your list.</p>
+        `;
+        previewWords.appendChild(summaryDiv);
     }
     
-    // Show the words that will be added
+    // Show the words that will be added, with visual distinction for new vs. existing
     const wordsDiv = document.createElement('div');
     wordsDiv.className = 'words-to-add';
-    wordsDiv.innerHTML = '<h4>Words to be added:</h4>';
+    wordsDiv.innerHTML = '<h4>Words to be processed:</h4>';
     
     newWords.forEach(word => {
         const wordElement = document.createElement('div');
-        wordElement.className = 'preview-word';
-        wordElement.textContent = word;
+        const isNew = actuallyNewWords.includes(word);
+        wordElement.className = `preview-word ${isNew ? 'new-word' : 'existing-word'}`;
+        wordElement.innerHTML = `<span class="word">${word}</span> <span class="status">${isNew ? '(new)' : '(already exists)'}</span>`;
         wordsDiv.appendChild(wordElement);
     });
     
@@ -1187,6 +1280,11 @@ function showWordPreview(newWords, sanityResults = null) {
 // Save new words
 async function saveNewWords() {
     try {
+        // Calculate how many words are actually new (not already in the list)
+        const existingWordsSet = new Set(words);
+        const actuallyNewWords = detectedWords.filter(word => !existingWordsSet.has(word));
+        const newWordCount = actuallyNewWords.length;
+        
         // Combine existing words with new words
         const allWords = [...new Set([...words, ...detectedWords])];
         
@@ -1202,8 +1300,14 @@ async function saveNewWords() {
         // Hide preview
         hideWordPreview();
         
-        // Show success message
-        showSuccessMessage(`Added ${detectedWords.length} new words!`);
+        // Show success message with accurate count
+        if (newWordCount === 0) {
+            showSuccessMessage(`All ${detectedWords.length} words were already in the list. No new words added.`);
+        } else if (newWordCount === detectedWords.length) {
+            showSuccessMessage(`Added ${newWordCount} new words!`);
+        } else {
+            showSuccessMessage(`Added ${newWordCount} new words! (${detectedWords.length - newWordCount} were already in the list)`);
+        }
         
     } catch (error) {
         console.error('Error saving words:', error);
@@ -1372,8 +1476,8 @@ function init() {
         console.warn('PDF.js not loaded yet');
     }
     
-    // Initialize PDF upload functionality
-    initializePDFUpload();
+    // Initialize file upload functionality
+    initializeFileUpload();
     
     // Fetch and display words
     fetchWords();

@@ -10,6 +10,8 @@
     <script src="lib/pdf.min.js"></script>
     <!-- Tesseract.js for OCR -->
     <script src="lib/tesseract.js"></script>
+    <!-- Mammoth.js for DOCX handling -->
+    <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -21,15 +23,15 @@
         <!-- PDF Upload Section -->
         <div class="upload-section">
             <h2>Add New Words</h2>
-            <p class="upload-instructions">Upload a PDF with sight words to add them to the list</p>
+            <p class="upload-instructions">Upload a PDF or DOCX file with sight words to add them to the list</p>
             
             <div class="upload-area" id="upload-area">
                 <div class="upload-content">
                     <div class="upload-icon">📄</div>
-                    <p>Drag & drop a PDF here or click to browse</p>
-                    <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
-                    <button class="upload-button" onclick="document.getElementById('pdf-input').click()">
-                        Choose PDF File
+                    <p>Drag & drop a PDF or DOCX file here or click to browse</p>
+                    <input type="file" id="file-input" accept=".pdf,.docx" style="display: none;">
+                    <button class="upload-button" onclick="document.getElementById('file-input').click()">
+                        Choose File (PDF or DOCX)
                     </button>
                     <p style="margin-top: 15px; font-size: 0.9rem; color: #888;">
                         Or <button class="text-button" onclick="showManualInput()">add words manually</button>
@@ -39,7 +41,7 @@
             
             <div class="processing-status" id="processing-status" style="display: none;">
                 <div class="spinner"></div>
-                <p id="status-text">Processing PDF...</p>
+                <p id="status-text">Processing file...</p>
             </div>
             
             <div class="word-preview" id="word-preview" style="display: none;">
