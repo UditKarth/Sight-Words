@@ -167,23 +167,45 @@ const fallbackWords = [
     'round', 'some', 'stop', 'take', 'thank', 'them', 'then', 'think', 'walk', 'were', 'when'
 ];
 
-// Fetch and parse CSV data
+// Fetch words from Firebase or fallback sources
 async function fetchWords() {
     try {
         showLoading();
         
-        // First, try to load words from the Red words list.docx file
-        console.log('Attempting to load words from Red words list.docx...');
+        // Check if we have a word list ID in the URL (student mode)
+        const urlParams = new URLSearchParams(window.location.search);
+        const wordListId = urlParams.get('id');
+        
+        if (wordListId) {
+            console.log('Loading words from Firebase with ID:', wordListId);
+            const firebaseWords = await loadWordsFromFirebase(wordListId);
+            
+            if (firebaseWords && firebaseWords.length > 0) {
+                console.log(`Successfully loaded ${firebaseWords.length} words from Firebase`);
+                words = firebaseWords;
+                
+                // Show success message
+                showSuccessMessage(`Loaded ${firebaseWords.length} words from your teacher's list!`);
+                
+                // Generate word buttons
+                setTimeout(() => {
+                    generateWordButtons();
+                }, 100);
+                
+                return;
+            }
+        }
+        
+        // Fallback: Try to load from DOCX file (for demo purposes)
+        console.log('No Firebase ID found, trying DOCX file...');
         const docxWords = await loadWordsFromDOCX();
         
         if (docxWords && docxWords.length > 0) {
             console.log(`Successfully loaded ${docxWords.length} words from DOCX`);
             words = docxWords;
             
-            // Show success message first
-            showSuccessMessage(`Successfully loaded ${docxWords.length} words from DOCX!`);
+            showSuccessMessage(`Loaded ${docxWords.length} words from DOCX!`);
             
-            // Generate word buttons after a short delay to ensure success message is shown
             setTimeout(() => {
                 generateWordButtons();
             }, 100);
@@ -191,8 +213,8 @@ async function fetchWords() {
             return;
         }
         
-        // Fallback to CSV if DOCX loading fails
-        console.log('DOCX loading failed or no words found, trying CSV file...');
+        // Final fallback: CSV file
+        console.log('DOCX loading failed, trying CSV file...');
         const response = await fetch('words.csv');
         
         if (!response.ok) {
@@ -202,32 +224,80 @@ async function fetchWords() {
         const csvText = await response.text();
         words = csvText.split('\n')
             .map(word => word.trim())
-            .filter(word => word.length > 0); // Remove empty lines
+            .filter(word => word.length > 0);
         
         if (words.length === 0) {
             throw new Error('No words found in the CSV file.');
         }
         
-        // Show success message first
         showSuccessMessage(`Loaded ${words.length} words from CSV file.`);
         
-        // Generate word buttons after a short delay
         setTimeout(() => {
             generateWordButtons();
         }, 100);
+        
     } catch (error) {
         console.error('Error fetching words:', error);
         console.log('Using fallback word list');
-        // Use fallback words if everything else fails
-        words = fallbackWords;
         
-        // Show success message first
+        words = fallbackWords;
         showSuccessMessage(`Loaded ${words.length} fallback words.`);
         
-        // Generate word buttons after a short delay
         setTimeout(() => {
             generateWordButtons();
         }, 100);
+    }
+}
+
+// Load words from Firebase Firestore
+async function loadWordsFromFirebase(wordListId) {
+    try {
+        console.log('Loading words from Firebase with ID:', wordListId);
+        showLoadingStatus('Loading words from Firebase...');
+        
+        // Wait for Firebase to initialize
+        if (!window.firebaseDB) {
+            throw new Error('Firebase not initialized');
+        }
+        
+        const db = window.firebaseDB;
+        
+        // Import Firestore functions
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js');
+        
+        // Fetch the document from Firestore
+        const wordListRef = doc(db, 'wordLists', wordListId);
+        const wordListSnap = await getDoc(wordListRef);
+        
+        if (wordListSnap.exists()) {
+            const wordData = wordListSnap.data();
+            const words = wordData.words;
+            
+            console.log('Firebase word data:', wordData);
+            console.log('Extracted words:', words);
+            
+            if (words && words.length > 0) {
+                showLoadingStatus(`Firebase loading complete! Found ${words.length} words.`);
+                
+                setTimeout(() => {
+                    hideLoadingStatus();
+                }, 1500);
+                
+                return words;
+            } else {
+                throw new Error('No words found in Firebase document');
+            }
+        } else {
+            throw new Error('Word list not found in Firebase');
+        }
+        
+    } catch (error) {
+        console.error('Error loading words from Firebase:', error);
+        showLoadingStatus(`Firebase loading failed: ${error.message}`);
+        setTimeout(() => {
+            hideLoadingStatus();
+        }, 3000);
+        return null;
     }
 }
 
@@ -1479,8 +1549,24 @@ function init() {
     // Initialize file upload functionality
     initializeFileUpload();
     
-    // Fetch and display words
-    fetchWords();
+    // Wait for Firebase to initialize, then fetch words
+    waitForFirebaseAndFetchWords();
+}
+
+// Wait for Firebase to initialize, then fetch words
+function waitForFirebaseAndFetchWords() {
+    const checkFirebase = () => {
+        if (window.firebaseDB) {
+            console.log('Firebase initialized, fetching words...');
+            fetchWords();
+        } else {
+            console.log('Waiting for Firebase to initialize...');
+            setTimeout(checkFirebase, 500);
+        }
+    };
+    
+    // Start checking after a short delay
+    setTimeout(checkFirebase, 1000);
 }
 
 // Start the application when DOM is loaded
